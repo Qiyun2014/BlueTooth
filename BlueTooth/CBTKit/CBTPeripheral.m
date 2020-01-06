@@ -18,6 +18,7 @@
     if (self = [super init]) {
         self.peripheral = peripheral;
         self.peripheral.delegate = self;
+        self.services = [[NSMutableArray alloc] init];
     }
     return self;
 }
@@ -26,6 +27,32 @@
 + (instancetype)initWithPeripheral:(CBPeripheral *)peripheral {
     CBTPeripheral *mPeripheral = [[CBTPeripheral alloc] init];
     return mPeripheral;
+}
+
+
+#pragma mark    -   public method
+
+
+- (NSInteger)getMaximumWriteDataOfLengthForStatus:(BOOL)withoutResponse {
+    return [self.peripheral maximumWriteValueLengthForType:withoutResponse ?
+                        CBCharacteristicWriteWithResponse : CBCharacteristicWriteWithoutResponse];
+}
+
+
+// 写入数据
+- (void)writeData:(NSString *)data withoutResponse:(BOOL)withoutResponse {
+    NSData *inputData = [data dataUsingEncoding:NSUTF8StringEncoding];
+    [self.peripheral writeValue:inputData
+              forCharacteristic:nil
+                           type:withoutResponse ? CBCharacteristicWriteWithResponse : CBCharacteristicWriteWithoutResponse];
+}
+
+
+#pragma mark    -   get method
+
+
+- (NSInteger)getSupportWriteMaximumLength {
+    return [self.peripheral maximumWriteValueLengthForType:CBCharacteristicWriteWithResponse];
 }
 
 #pragma mark    -   CBPeripheralDelegate
@@ -60,6 +87,11 @@
             if (self.delegate && [self.delegate respondsToSelector:@selector(peripheral:didDiscoverPeripheralService:)]) {
                 [self.delegate peripheral:self didDiscoverPeripheralService:service];
             }
+            
+            // 存储所有服务
+            if (![self.services containsObject:service]) {
+                [self.services addObject:service];
+            }
         }
     }
 }
@@ -72,29 +104,44 @@
 
 - (void)peripheral:(CBPeripheral *)peripheral didDiscoverCharacteristicsForService:(CBService *)service error:(nullable NSError *)error {
     NSLog(@"peripheral -->   did discover characteristics services = %@, error = %@", service, error);
-    
     if (!error) {
-         for (CBCharacteristic *cha in service.characteristics) {
-               if(cha.properties & CBCharacteristicPropertyWrite){
-                   NSLog(@"peripheral -->   CBCharacteristicPropertyWrite");
-                   NSLog(@"peripheral -->   %lu",cha.properties & CBCharacteristicPropertyWrite);
-
-               }else if(cha.properties & CBCharacteristicPropertyWriteWithoutResponse){
-                   NSLog(@"peripheral -->   CBCharacteristicPropertyWriteWithoutResponse");
-               }else if(cha.properties & CBCharacteristicPropertyRead){
-                   NSLog(@"peripheral -->   CBCharacteristicPropertyRead");
-               }else if(cha.properties & CBCharacteristicPropertyNotify){
-                   NSLog(@"peripheral -->   CBCharacteristicPropertyNotify");
-               }else if(cha.properties & CBCharacteristicPropertyIndicate){
-                   NSLog(@"peripheral -->   CBCharacteristicPropertyIndicate");
-               }
-               NSLog(@"peripheral -->   设备获取特征成功，服务名：%@，特征值名：%@，特征UUID：%@，特征数量：%lu",service,cha,cha.UUID,service.characteristics.count);
-               //获取特征对应的描述 会回调didDiscoverDescriptorsForCharacteristic
-               [peripheral discoverDescriptorsForCharacteristic:cha];
+         for (CBCharacteristic *characteristic in service.characteristics) {
+             switch (characteristic.properties) {
+                 case CBCharacteristicPropertyWrite: {
+                         NSLog(@"peripheral -->   CBCharacteristicPropertyWrite");
+                         NSLog(@"peripheral -->   %lu", characteristic.properties & CBCharacteristicPropertyWrite);
+                     }
+                     break;
+                     
+                case CBCharacteristicPropertyWriteWithoutResponse:
+                     NSLog(@"peripheral -->   CBCharacteristicPropertyWriteWithoutResponse");
+                     break;
+                     
+                case CBCharacteristicPropertyRead:
+                     NSLog(@"peripheral -->   CBCharacteristicPropertyRead");
+                     break;
+                     
+                case CBCharacteristicPropertyNotify:
+                     NSLog(@"peripheral -->   CBCharacteristicPropertyNotify");
+                     break;
+                     
+                case CBCharacteristicPropertyIndicate:
+                     NSLog(@"peripheral -->   CBCharacteristicPropertyIndicate");
+                     break;
+                     
+                 default:
+                     break;
+             }
+             NSLog(@"peripheral -->   设备获取特征成功，服务名：%@，特征值名：%@，特征UUID：%@，特征数量：%lu", service, characteristic, characteristic.UUID, service.characteristics.count);
+             //获取特征对应的描述 会回调didDiscoverDescriptorsForCharacteristic
+             [peripheral discoverDescriptorsForCharacteristic:characteristic];
+               
+             //获取特征的值 会回调didUpdateValueForCharacteristic
+             [peripheral readValueForCharacteristic:characteristic];
              
-               //获取特征的值 会回调didUpdateValueForCharacteristic
-               [peripheral readValueForCharacteristic:cha];
-           }
+             // 开启通知
+             [peripheral setNotifyValue:YES forCharacteristic:characteristic];
+         }
     }
 }
 
@@ -116,12 +163,21 @@
 
 
 - (void)peripheral:(CBPeripheral *)peripheral didDiscoverDescriptorsForCharacteristic:(CBCharacteristic *)characteristic error:(nullable NSError *)error {
-    
+    if(error){
+        NSLog(@"设备获取描述失败，设备名：%@", peripheral.name);
+    }
+    for (CBDescriptor *descriptor in characteristic.descriptors) {
+        [peripheral readValueForDescriptor:descriptor];
+        NSLog(@"设备获取描述成功，描述名：%@",descriptor);
+    }
 }
 
 
 - (void)peripheral:(CBPeripheral *)peripheral didUpdateValueForDescriptor:(CBDescriptor *)descriptor error:(nullable NSError *)error {
     
+    if (!error) {
+        NSLog(@"读取特征值从描述信息   %@, value = %@", descriptor, descriptor.value);
+    }
 }
 
 

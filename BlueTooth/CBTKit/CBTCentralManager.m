@@ -53,6 +53,19 @@ static NSString *kCBCentralProperty_isScanning = @"isScanning";
 }
 
 
+- (void)connectPeriheral:(CBTPeripheral *)peripheral {
+    [self.centralManager connectPeripheral:peripheral.peripheral
+                                   options:@{CBConnectPeripheralOptionNotifyOnConnectionKey      : @true,
+                                             CBConnectPeripheralOptionNotifyOnDisconnectionKey   : @true,
+                                             CBConnectPeripheralOptionNotifyOnNotificationKey    : @true}];
+}
+
+
+- (void)disconnectPeriheral:(CBTPeripheral *)peripheral {
+    [self.centralManager cancelPeripheralConnection:peripheral.peripheral];
+}
+
+
 #pragma mark    -   get method
 
 // 管理远程外设的发现和连接，包含扫描、发现和连接到广告外设
@@ -61,12 +74,9 @@ static NSString *kCBCentralProperty_isScanning = @"isScanning";
     // By specifying the dispatch queue as nil, the central manager dispatches central role events using the main queue.
     if (!_centralManager) {
         _centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:nil options:nil];
-        [self addAllObserver];
     }
     return _centralManager;
 }
-
-
 
 
 #pragma mark    -   CBCentralManagerDelegate
@@ -96,10 +106,9 @@ static NSString *kCBCentralProperty_isScanning = @"isScanning";
         NSLog(@"Discovered, name = %@, charter = %@, RSSI = %@", peripheral.name, peripheral.identifier, RSSI);
         CBTPeripheral *mPeripheral;
         if ([peripheral.name isEqualToString:@"qiyun的AirPods Pro"]) {
-            [central connectPeripheral:peripheral options:@{CBConnectPeripheralOptionNotifyOnConnectionKey : @true,
-                                                            CBConnectPeripheralOptionNotifyOnDisconnectionKey : @true,
-                                                            CBConnectPeripheralOptionNotifyOnNotificationKey : @true
-            }];
+            [central connectPeripheral:peripheral options:@{CBConnectPeripheralOptionNotifyOnConnectionKey      : @true,
+                                                            CBConnectPeripheralOptionNotifyOnDisconnectionKey   : @true,
+                                                            CBConnectPeripheralOptionNotifyOnNotificationKey    : @true}];
             mPeripheral = [[CBTPeripheral alloc] initWithPeripheral:peripheral];
         } else {
             mPeripheral = [CBTPeripheral initWithPeripheral:peripheral];
@@ -117,10 +126,13 @@ static NSString *kCBCentralProperty_isScanning = @"isScanning";
 
 - (void)centralManager:(CBCentralManager *)central didConnectPeripheral:(CBPeripheral *)peripheral {
     NSLog(@"didConnectPeripheral");
-    
     if (peripheral.state == CBPeripheralStateConnected) {
         // 获取所有的外设服务信息,参数可以进行过滤
         [peripheral discoverServices:nil];
+        
+        if (self.delegate && [self.delegate respondsToSelector:@selector(centralManager:didConnectPeripheral:)]) {
+            [self.delegate centralManager:self didConnectPeripheral:[CBTPeripheral initWithPeripheral:peripheral]];
+        }
     }
 }
 
