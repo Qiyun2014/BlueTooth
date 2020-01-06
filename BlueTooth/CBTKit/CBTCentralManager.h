@@ -25,6 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (void)centralManager:(CBTCentralManager *)centralManager didDiscoverPeripheral:(CBTPeripheral *)peripheral RSSI:(NSNumber *)RSSI;
 
+
 /*!
  *  @method didConnectPeripheral
  *
@@ -34,6 +35,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  */
 - (void)centralManager:(CBTCentralManager *)centralManager didConnectPeripheral:(CBTPeripheral *)peripheral;
+
 
 /*!
  *  @method didDisconnectPeripheral
@@ -50,17 +52,22 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface CBTCentralManager : CBTManager
 
+
 // 中心设备管理,控制远程外设的发现和连接，包含扫描、发现和连接到广告外设
 @property (strong, nonatomic) CBCentralManager *centralManager;
+
 
 // 代理，用于接收事件回调
 @property (weak, nonatomic) id <CBTCentralDelegate> delegate;
 
+
 // 连接外设
 - (void)connectPeriheral:(CBTPeripheral *)peripheral;
 
+
 // 断开外设连接
 - (void)disconnectPeriheral:(CBTPeripheral *)peripheral;
+
 
 @end
 

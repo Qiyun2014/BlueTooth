@@ -30,14 +30,18 @@ NS_ASSUME_NONNULL_BEGIN
 // 当前存储的外设
 @property (strong, nonatomic) CBPeripheral *peripheral;
 
+
 // 代理
 @property (weak, nonatomic) id <CBTPeripheralDelegate> delegate;
+
 
 // 已连接外设的所有服务
 @property (strong, nonatomic) NSMutableArray <CBService *> *services;
 
+
 // 特征值
 @property (strong, nonatomic) CBCharacteristic *writeCharacteristic;
+
 
 // 写入最大字节长度, 默认写入无响应
 @property (assign, nonatomic, getter=getSupportWriteMaximumLength) NSInteger supportWriteMaximumLength;

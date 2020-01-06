@@ -39,11 +39,16 @@
 }
 
 
-// 写入数据
 - (void)writeData:(NSString *)data withoutResponse:(BOOL)withoutResponse {
     NSData *inputData = [data dataUsingEncoding:NSUTF8StringEncoding];
+    NSInteger maximumLength = [self getMaximumWriteDataOfLengthForStatus:withoutResponse];
+    // 裁剪数据，使其在GATT协议规定长度之内
+    if (inputData.length > maximumLength) {
+        inputData = [inputData subdataWithRange:NSMakeRange(0, maximumLength)];
+    }
+    // 写入数据到特征
     [self.peripheral writeValue:inputData
-              forCharacteristic:nil
+              forCharacteristic:self.writeCharacteristic
                            type:withoutResponse ? CBCharacteristicWriteWithResponse : CBCharacteristicWriteWithoutResponse];
 }
 
@@ -54,6 +59,8 @@
 - (NSInteger)getSupportWriteMaximumLength {
     return [self.peripheral maximumWriteValueLengthForType:CBCharacteristicWriteWithResponse];
 }
+
+
 
 #pragma mark    -   CBPeripheralDelegate
 
@@ -108,13 +115,24 @@
          for (CBCharacteristic *characteristic in service.characteristics) {
              switch (characteristic.properties) {
                  case CBCharacteristicPropertyWrite: {
-                         NSLog(@"peripheral -->   CBCharacteristicPropertyWrite");
-                         NSLog(@"peripheral -->   %lu", characteristic.properties & CBCharacteristicPropertyWrite);
+                     NSLog(@"peripheral -->   CBCharacteristicPropertyWrite");
+                     NSLog(@"peripheral -->   %lu", characteristic.properties & CBCharacteristicPropertyWrite);
+                     self.writeCharacteristic = characteristic;
+                     if (self.writeCharacteristic) {
+                         // 开启通知，会回调peripheral:didUpdateNotificationStateForCharacteristic:error:
+                         [peripheral setNotifyValue:YES forCharacteristic:self.writeCharacteristic];
                      }
+                 }
                      break;
                      
-                case CBCharacteristicPropertyWriteWithoutResponse:
+                 case CBCharacteristicPropertyWriteWithoutResponse: {
                      NSLog(@"peripheral -->   CBCharacteristicPropertyWriteWithoutResponse");
+                     self.writeCharacteristic = characteristic;
+                     if (self.writeCharacteristic) {
+                         // 开启通知，会回调peripheral:didUpdateNotificationStateForCharacteristic:error:
+                         [peripheral setNotifyValue:YES forCharacteristic:self.writeCharacteristic];
+                     }
+                 }
                      break;
                      
                 case CBCharacteristicPropertyRead:
@@ -133,14 +151,11 @@
                      break;
              }
              NSLog(@"peripheral -->   设备获取特征成功，服务名：%@，特征值名：%@，特征UUID：%@，特征数量：%lu", service, characteristic, characteristic.UUID, service.characteristics.count);
-             //获取特征对应的描述 会回调didDiscoverDescriptorsForCharacteristic
+             //获取特征对应的描述，会回调didDiscoverDescriptorsForCharacteristic
              [peripheral discoverDescriptorsForCharacteristic:characteristic];
                
-             //获取特征的值 会回调didUpdateValueForCharacteristic
+             //获取特征的值，会回调didUpdateValueForCharacteristic
              [peripheral readValueForCharacteristic:characteristic];
-             
-             // 开启通知
-             [peripheral setNotifyValue:YES forCharacteristic:characteristic];
          }
     }
 }
@@ -159,6 +174,7 @@
 
 - (void)peripheral:(CBPeripheral *)peripheral didUpdateNotificationStateForCharacteristic:(CBCharacteristic *)characteristic error:(nullable NSError *)error {
     
+    NSLog(@"更新APNC通知状态  %@, error = %@", characteristic, error);
 }
 
 
@@ -167,14 +183,17 @@
         NSLog(@"设备获取描述失败，设备名：%@", peripheral.name);
     }
     for (CBDescriptor *descriptor in characteristic.descriptors) {
-        [peripheral readValueForDescriptor:descriptor];
+        if ((characteristic.properties == CBCharacteristicPropertyWrite) ||
+            (characteristic.properties == CBCharacteristicPropertyWriteWithoutResponse)) {
+            
+            [peripheral readValueForDescriptor:descriptor];
+        }
         NSLog(@"设备获取描述成功，描述名：%@",descriptor);
     }
 }
 
 
 - (void)peripheral:(CBPeripheral *)peripheral didUpdateValueForDescriptor:(CBDescriptor *)descriptor error:(nullable NSError *)error {
-    
     if (!error) {
         NSLog(@"读取特征值从描述信息   %@, value = %@", descriptor, descriptor.value);
     }
